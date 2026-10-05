@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments and editor files
+.venv/
+venv/
+.idea/
+.vscode/
+
+# Training artifacts and generated outputs
+outputs/
+runs/
+checkpoints/
+logs/
+tensorboard/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.npy
+*.npz
+*.csv
+*.jsonl
+*.png
+*.pdf
+
+# Data and feature caches
+data/
+cache/
+tmp/
+
+# Credentials and local configuration
+.env
+*.key
+*.pem
+secrets.*
+local_*.yaml

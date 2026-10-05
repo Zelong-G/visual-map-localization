@@ -1,0 +1,26 @@
+# A compact reference configuration. Angles in the pose grid are in degrees.
+model:
+  bev_channels: 128
+  hidden_dim: 128
+  map_type_count: 6
+  decoder_layers: 2
+  attention_heads: 4
+  samples_per_segment: 5
+  temperature: 1.0
+
+bev:
+  x_range_m: [-40.0, 40.0]
+  y_range_m: [-40.0, 40.0]
+  row_axis: "x decreases with row"
+  column_axis: "y increases with column"
+
+pose_grid:
+  x_m: {min: -5.0, max: 5.0, step: 1.0}
+  y_m: {min: -3.0, max: 3.0, step: 1.0}
+  yaw_deg: {min: -10.0, max: 10.0, step: 2.0}
+
+train:
+  batch_size: 2
+  epochs: 20
+  learning_rate: 0.0003
+  weight_decay: 0.0001

@@ -1,0 +1,6 @@
+single_frame_config: single_frame.yaml
+temporal:
+  prior_weight: 0.85
+  minimum_prior_weight: 0.05
+  covariance_floor: [0.05, 0.05, 0.008]
+  transport_padding: "zero"
