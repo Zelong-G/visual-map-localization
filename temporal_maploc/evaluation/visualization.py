@@ -31,7 +31,6 @@ def plot_pose_heatmaps(
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
     figure, axes = plt.subplots(1, 2, figsize=(9, 4), constrained_layout=True)
-    extent = [float(grid.yaw[0]), float(grid.yaw[-1]), float(grid.x[0]), float(grid.x[-1])]
     # Use a conventional x/y visualization independent of yaw by plotting
     # y horizontally and x vertically.
     extent = [float(grid.y[0]), float(grid.y[-1]), float(grid.x[0]), float(grid.x[-1])]

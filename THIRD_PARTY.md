@@ -1,18 +1,16 @@
 # Third-Party Components
 
-No third-party source code, checkpoints, datasets, or generated features are
-vendored in this repository.
+This repository does **not** vendor third-party source code, checkpoints, datasets, map assets, or generated features.
 
-| Component | Source repository | License observed in source review | Use here | Vendored? |
-| --- | --- | --- | --- | --- |
-| BEVFusion | `https://github.com/mit-han-lab/bevfusion` | Apache-2.0 (local source review) | Optional external camera–LiDAR BEV backend; accessed only through `BEVFusionAdapter` | No |
-| PyTorch | `https://github.com/pytorch/pytorch` | BSD-style license; verify the selected wheel's notices | Tensor operations and neural-network layers | No |
-| PyYAML | `https://pyyaml.org/` | MIT license; verify selected distribution | YAML configuration parsing in CLI scripts | No |
+| Component | Upstream | Role in this repository | Bundled here? |
+| --- | --- | --- | --- |
+| BEVFusion | https://github.com/mit-han-lab/bevfusion | Optional external camera/LiDAR BEV backend through `BEVFusionAdapter` | No |
+| PyTorch | https://github.com/pytorch/pytorch | Tensor operations and neural-network layers | No |
+| PyYAML | https://pyyaml.org/ | YAML configuration parsing | No |
+| Matplotlib | https://matplotlib.org/ | Optional synthetic posterior visualization | No |
 
-The adapter does not copy, import by a fixed module path, modify, or redistribute
-BEVFusion. A user who chooses that backend must install it separately and comply
-with its license, notices, build requirements, and the licenses of its
-dependencies.
+`BEVFusionAdapter` defines a small callable boundary and does not copy a BEVFusion implementation, checkpoint, or configuration into this project. Users who connect an external backend are responsible for installing it separately and complying with its upstream license and dependency notices.
 
-nuScenes-related tooling, map SDKs, and map data are not included. Their use is
-outside this repository's distribution scope and requires independent review.
+The same applies to dataset SDKs and map tooling (for example, nuScenes-related tooling): they are outside this repository's distribution scope and must be installed and used under their own terms.
+
+Upstream licenses can change; verify the version you actually install rather than relying on this document as legal advice.

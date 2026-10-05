@@ -2,106 +2,101 @@
 
 **BEV-to-Vector-Map Localization with Motion-Guided Temporal Fusion**
 
-TemporalMapLoc is a PyTorch research framework for vehicle localization by
-matching bird's-eye-view (BEV) features against vectorized maps, estimating a
-probabilistic SE(2) pose correction, and fusing successive frames with a
-motion-guided posterior.
+[![CI](https://github.com/Zelong-G/visual-map-localization/actions/workflows/ci.yml/badge.svg)](https://github.com/Zelong-G/visual-map-localization/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.1%2B-EE4C2C)
+
+TemporalMapLoc is a compact PyTorch research implementation for local vehicle pose correction from bird's-eye-view (BEV) features and vectorized maps. It produces a probabilistic local SE(2) posterior and can propagate that posterior through time using relative vehicle motion and uncertainty.
+
+This repository is a cleaned public implementation of ideas explored in my master's research on precise visual localization for autonomous driving. It is intentionally structured for **inspection, reproducibility, and experimentation** rather than as a dump of an internal training environment.
+
+> **Public-release scope.** Proprietary datasets, sensor logs, HD-map assets, checkpoints, cached features, private launchers, and internal experiment tooling are not included. The core localization, posterior transport, fusion logic, synthetic demonstrations, and unit tests are standalone.
+
+## Research idea
+
+A single frame can be ambiguous: several nearby map alignments may explain the current BEV observation. Instead of immediately collapsing the estimate to one pose, TemporalMapLoc keeps a discrete probability distribution over local SE(2) corrections and carries that uncertainty into the next frame.
 
 ```mermaid
 flowchart LR
-    A[Camera / LiDAR] --> B[BEV encoder or adapter]
-    C[Vector map] --> D[Map-query encoder]
-    B --> E[Cross-modal matching]
+    A[Camera / LiDAR] --> B[BEV encoder or external adapter]
+    C[Vector map] --> D[Type-aware map encoder]
+    B --> E[Cross-modal refinement]
     D --> E
-    E --> F[Pose score volume]
-    F --> G[SE(2) posterior]
-    H[Previous posterior] --> I[Motion propagation]
-    J[Vehicle motion] --> I
-    I --> K[Probabilistic fusion]
+    E --> F[Chunked SE(2) hypothesis scoring]
+    F --> G[Observation posterior]
+    H[Previous posterior] --> I[Motion transport + uncertainty diffusion]
+    J[Relative vehicle motion] --> I
+    I --> K[Robust probabilistic fusion]
     G --> K
-    K --> L[Refined pose]
+    K --> L[Current pose posterior]
 ```
 
-## Overview
+The public implementation focuses on two questions:
 
-The single-frame localizer scores a discrete grid of local pose corrections.
-Each hypothesis transforms vector-map segments into the initial ego frame,
-samples BEV evidence along the segments, and produces a normalized posterior.
-The temporal localizer transports the preceding posterior under a relative
-SE(2) motion estimate, diffuses it according to motion uncertainty, and
-combines it with the current-frame likelihood in log space.
+1. **Single-frame localization:** how to score a local grid of translation/yaw hypotheses by matching vector-map queries against BEV evidence.
+2. **Temporal localization:** how to transport a previous pose posterior with relative motion, account for motion uncertainty, and fuse it causally with the current observation.
 
-This is a clean research release: proprietary data, checkpoints, cached
-features, operational launchers, and exploratory analysis are excluded.
+## What is implemented
 
-## Key features
+| Component | Public implementation |
+| --- | --- |
+| BEV interface | Validated `[B,C,H,W]` tensors plus a pluggable external-backend adapter |
+| Vector map | Typed line segments with padding/masks and learned map-query encoding |
+| Cross-modal model | BEV-conditioned refinement of vector-map queries |
+| Pose estimation | Exhaustive local SE(2) grid, chunked scoring, normalized posterior, circular yaw expectation |
+| Temporal model | SE(2) posterior transport, uncertainty diffusion, reliability-aware product-of-experts fusion |
+| Engineering | YAML configs, train/evaluate CLIs, synthetic benchmark/demo, data-free tests |
 
-- Explicit BEV coordinate convention and shape validation.
-- Vector-map segments with typed, padded query encoding.
-- Exhaustive, chunked SE(2) pose scoring and posterior expectation.
-- Causal motion-prior propagation with trilinear mass transport.
-- Stable product-of-experts temporal fusion.
-- A BEVFusion-compatible adapter without vendored third-party source.
-- Synthetic demo, benchmark, and data-free unit tests.
+For the mathematical details, see [docs/METHOD.md](docs/METHOD.md).
 
-## Coordinate convention
+## Synthetic temporal demo
 
-All local poses are `[x, y, yaw]` where `x` is forward, `y` is left, and yaw
-is counter-clockwise in radians. A pose maps coordinates from its local ego
-frame into the map frame. BEV tensors are `[B, C, H, W]`; rows represent
-decreasing `x` and columns represent increasing `y`. The supplied BEV range
-defines the physical cell centers. Motion is a relative pose in the preceding
-ego frame.
-
-## Repository structure
-
-```text
-temporal_maploc/
-  bev/          BEV validation, encoder, and external-backend adapter
-  geometry/     SE(2) and metric BEV geometry
-  maps/         vector-map data structures and query encoder
-  models/       matching, pose grid, solver, and single-frame localizer
-  temporal/     motion, posterior propagation, fusion, and temporal localizer
-  evaluation/   metrics and optional visualization
-scripts/        concise demo, train, evaluation, and benchmark entry points
-tests/          data-free mathematical and model-contract tests
-```
-
-## Installation
+The included demo is dataset-free. It constructs a broad current-frame observation, propagates a previous posterior with uncertain relative motion, fuses both distributions, and can write a before/after heatmap:
 
 ```bash
-git clone <your-fork-url> TemporalMapLoc
-cd TemporalMapLoc
-python -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev,visualization]'
+python scripts/demo.py --output outputs/temporal_demo.png
 ```
 
-For a production camera–LiDAR backbone, install the chosen backend in its own
-environment. This package does not bundle backend code or weights.
+The generated visualization is a functional illustration only, not a real-data benchmark result.
 
 ## Quick start
 
-The synthetic demo requires no dataset or checkpoint and writes an optional
-before/after plot.
-
 ```bash
-python scripts/demo.py --output outputs/demo.png
-python scripts/benchmark.py --config configs/single_frame.yaml --synthetic
-python scripts/evaluate_temporal.py --config configs/temporal.yaml --synthetic
-pytest
+git clone https://github.com/Zelong-G/visual-map-localization.git
+cd visual-map-localization
+
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev,visualization]"
 ```
 
-## Data preparation
+Run the public checks:
 
-Training and evaluation accept a directory of `.pt` samples. Each sample is a
-dictionary with `bev` `[C,H,W]`, `segments` `[N,4]`, `type_ids` `[N]`,
-`map_mask` `[N]`, and `target_offset` `[3]`. Segment endpoints are expressed
-in the initial ego frame in meters. `type_ids` must be integers in
-`[0, map_type_count)`; padding is controlled by `map_mask`.
+```bash
+python scripts/demo.py --output outputs/temporal_demo.png
+python scripts/evaluate_temporal.py --config configs/temporal.yaml --synthetic
+python scripts/benchmark.py --config configs/single_frame.yaml --synthetic
+pytest -q
+```
 
-The data owner is responsible for checking dataset terms, map terms, sensor
-calibration, and de-identification before preparing a release.
+The current test suite contains **9 unit tests** covering SE(2) geometry, pose-grid construction, posterior normalization, pose-solver contracts, and temporal probability-mass propagation.
+
+## Public data interface
+
+The single-frame training/evaluation scripts consume directories of `.pt` samples. Each sample is a dictionary containing:
+
+```text
+bev            [C, H, W]   BEV feature tensor
+segments       [N, 4]      vector-map segment endpoints
+type_ids       [N]         semantic/type IDs
+map_mask       [N]         valid-segment mask
+target_offset  [3]         [dx, dy, dyaw] supervision
+```
+
+Segment endpoints are expressed in the initial ego frame in meters. Local poses use `[x, y, yaw]`, with `x` forward, `y` left, and positive yaw counter-clockwise.
+
+A real camera/LiDAR system can be connected through `BEVFusionAdapter` (or another callable backend) as long as the backend returns a BEV tensor with shape `[B,C,H,W]`. No third-party perception backbone is vendored here.
 
 ## Training and evaluation
 
@@ -115,36 +110,48 @@ python scripts/evaluate.py \
   --config configs/single_frame.yaml \
   --data /path/to/validation_samples \
   --checkpoint outputs/run/best.pt
-
-python scripts/evaluate_temporal.py \
-  --config configs/temporal.yaml \
-  --synthetic
 ```
 
-The temporal evaluation CLI currently exposes a synthetic, data-free contract
-test. Integrating a sequence loader is intentionally left to each dataset's
-release policy; no private scene manifests or sensor logs are assumed here.
+The temporal CLI currently exposes a synthetic sequence contract rather than a dataset-specific sequence loader. This keeps the public repository independent of non-redistributable scene manifests, sensor logs, map assets, and calibration files.
 
-## Results
+## Repository layout
 
-No numerical claim is included in this release. See
-[docs/RESULTS.md](docs/RESULTS.md) for the reproducibility policy and the
-required protocol before adding a benchmark table.
+```text
+temporal_maploc/
+  bev/          BEV validation, encoder, preprocessing, external-backend adapter
+  geometry/     SE(2) transforms and metric BEV geometry
+  maps/         vector-map structures and query encoder
+  models/       cross-modal matching, pose grid/solver, single-frame localizer
+  temporal/     motion model, posterior transport, fusion, temporal localizer
+  evaluation/   metrics and optional visualization
+configs/        compact single-frame and temporal reference configs
+scripts/        demo, train, evaluate, temporal evaluation, benchmark
+tests/          data-free geometry/model/temporal tests
+docs/           method and evaluation/reproducibility notes
+```
 
-## Tests
+## Reproducibility and release boundaries
 
-The test suite covers SE(2) composition and inversion, yaw wrapping, pose-grid
-construction, posterior normalization, pose-solver contracts, and temporal
-probability-mass behavior.
+The repository deliberately separates **public algorithmic code** from **project-specific assets**. A real-data benchmark should state the dataset version/split, sensor and map preprocessing, model configuration, checkpoint-selection rule, metric aggregation, and runtime protocol. See [docs/RESULTS.md](docs/RESULTS.md) for the reporting checklist.
+
+Project-specific numerical results and checkpoints are not mirrored here until their release terms and evaluation protocol can be made public and independently interpretable. The synthetic demo and tests are therefore used as functional verification, not as performance claims.
 
 ## Third-party components
 
-TemporalMapLoc vendors no third-party source files. The optional BEVFusion
-adapter invokes a separately installed backend through a small callable
-interface. See [THIRD_PARTY.md](THIRD_PARTY.md) and
-[LICENSE_REVIEW_REQUIRED.md](LICENSE_REVIEW_REQUIRED.md) before publishing.
+No third-party source code, pretrained weights, datasets, or generated features are vendored. Optional external backends remain under their own licenses and installation requirements. See [THIRD_PARTY.md](THIRD_PARTY.md).
 
-## Citation and contact
+## Citation
 
-If you use this code, please replace this section with the authors' final
-citation and contact information before publication.
+If this repository is useful in academic work, please cite the software metadata in [CITATION.cff](CITATION.cff). A paper-specific citation can be added when a corresponding public manuscript is available.
+
+## Author
+
+**Zelong Zheng**  
+Technical University of Munich (TUM)  
+Research interests: 3D computer vision, autonomous driving, multimodal perception, BEV perception, and visual localization.
+
+GitHub: [Zelong-G](https://github.com/Zelong-G)
+
+## License and reuse
+
+No open-source license is granted for this repository at this time. The source is publicly visible for academic inspection, research discussion, and portfolio evaluation. Please contact the author before copying, redistributing, or incorporating substantial portions into another project. Third-party software remains governed by its respective license.
